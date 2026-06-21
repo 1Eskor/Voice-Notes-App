@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 import AudioEngine from '@/components/audio/AudioEngine';
 import VoiceCommandListener from '@/components/voice/VoiceCommandListener';
@@ -23,7 +30,6 @@ export const metadata: Metadata = {
     title: 'VoiceNote — Share What You Say',
     description: 'Discover and share voice notes.',
   },
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -47,8 +53,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-dvh bg-[#080808] text-white overflow-x-hidden">
+    <html lang="en" className={`dark ${inter.variable}`}>
+      <body className="min-h-dvh bg-[#080808] text-white overflow-x-hidden font-[var(--font-inter),system-ui,sans-serif]">
         {/* ── Invisible global systems ─────────────────────────────────── */}
         {/* Owns the <audio> element and registers Media Session API */}
         <AudioEngine />
