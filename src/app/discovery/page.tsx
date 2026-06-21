@@ -1,20 +1,157 @@
-import type { Metadata } from 'next';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'Discovery',
-  description: 'Trending voice notes from the last 48 hours.',
-};
+import React, { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { NoteWithProfile } from '@/lib/types';
+import NoteCard from '@/components/NoteCard';
+import { useAudioPlayer } from '@/stores/useAudioPlayer';
 
 export default function DiscoveryPage() {
+  const [notes, setNotes] = useState<NoteWithProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
+
+  const setQueue = useAudioPlayer((state) => state.setQueue);
+
+  useEffect(() => {
+    const fetchTrendingNotes = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        setIsFallbackMode(false);
+        
+        const supabase = createClient();
+        
+        // Calculate timestamp for 48 hours ago
+        const now = new Date();
+        const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+
+        // 1. Attempt to fetch notes created in the last 48 hours, ordered by likes
+        let { data, error: queryError } = await supabase
+          .from('notes')
+          .select('*, profiles!user_id(username, display_picture)')
+          .gte('created_at', fortyEightHoursAgo)
+          .order('likes_count', { ascending: false })
+          .limit(20);
+
+        if (queryError) throw queryError;
+
+        // 2. Fallback check: If no notes exist in the last 48 hours, fetch all-time top notes
+        if (!data || data.length === 0) {
+          console.log('No notes found in the last 48 hours. Fetching all-time trending fallback...');
+          const fallbackRes = await supabase
+            .from('notes')
+            .select('*, profiles!user_id(username, display_picture)')
+            .order('likes_count', { ascending: false })
+            .limit(20);
+
+          if (fallbackRes.error) throw fallbackRes.error;
+          data = fallbackRes.data;
+          setIsFallbackMode(true);
+        }
+
+        // Map and format incoming profiles
+        const formattedNotes: NoteWithProfile[] = (data || []).map((item: any) => {
+          const profileData = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+          return {
+            ...item,
+            profiles: profileData || { username: 'Anonymous', display_picture: null },
+          } as NoteWithProfile;
+        });
+
+        setNotes(formattedNotes);
+
+        // Update global audio player queue with discovery feed
+        if (formattedNotes.length > 0) {
+          setQueue(formattedNotes);
+        }
+      } catch (err: any) {
+        console.error('Error loading trending notes:', err);
+        setError(err.message || 'Failed to fetch discovery feed.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTrendingNotes();
+  }, [setQueue]);
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center">
-        <span className="text-white text-xl">🔍</span>
-      </div>
-      <h1 className="text-white font-bold text-xl">Discovery</h1>
-      <p className="text-white/40 text-sm text-center max-w-xs">
-        Trending notes from the last 48 hours will appear here. Phase 2 coming soon.
-      </p>
+    <div className="max-w-2xl mx-auto px-4 py-8">
+      {/* Page Header */}
+      <header className="mb-8">
+        <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-cyan-400 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent">
+          Discovery
+        </h1>
+        <p className="text-sm text-neutral-400 mt-1">
+          Trending and popular notes across the network.
+        </p>
+      </header>
+
+      {/* Fallback Notice */}
+      {isFallbackMode && notes.length > 0 && (
+        <div className="mb-6 p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 flex items-center gap-3">
+          <span className="text-base">ℹ️</span>
+          <p className="text-xs text-cyan-400/95 font-medium">
+            No notes were posted in the last 48 hours. Showing overall top trending voice logs instead!
+          </p>
+        </div>
+      )}
+
+      {/* Feed Content */}
+      {isLoading ? (
+        // Loading skeletons
+        <div className="flex flex-col gap-4">
+          {Array.from({ length: 3 }).map((_, idx) => (
+            <div
+              key={idx}
+              className="w-full flex items-start gap-4 p-4 rounded-2xl bg-neutral-900/20 border border-white/5 animate-pulse"
+            >
+              <div className="w-10 h-10 rounded-full bg-neutral-800 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex gap-2 mb-2">
+                  <div className="w-20 h-3 bg-neutral-800 rounded" />
+                  <div className="w-10 h-3 bg-neutral-800 rounded" />
+                </div>
+                <div className="w-32 h-4 bg-neutral-800 rounded mb-4" />
+                <div className="w-full h-8 bg-neutral-800/50 rounded-sm" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        // Error state
+        <div className="flex flex-col items-center justify-center p-8 rounded-2xl bg-rose-500/5 border border-rose-500/10 text-center">
+          <span className="text-2xl mb-2">⚠️</span>
+          <h3 className="text-white font-bold">Failed to load trending</h3>
+          <p className="text-rose-400/80 text-xs mt-1 max-w-sm">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 rounded-lg bg-neutral-850 hover:bg-neutral-800 border border-white/5 text-xs text-white transition-all font-medium"
+          >
+            Retry
+          </button>
+        </div>
+      ) : notes.length === 0 ? (
+        // Empty State
+        <div className="flex flex-col items-center justify-center min-h-[45vh] text-center p-6 border border-dashed border-white/5 rounded-3xl bg-neutral-950/20">
+          <div className="w-14 h-14 rounded-full bg-neutral-900 border border-white/10 flex items-center justify-center mb-4 shadow-xl">
+            <span className="text-2xl text-neutral-400">🔍</span>
+          </div>
+          <h2 className="text-white font-bold text-lg">Discovery is empty</h2>
+          <p className="text-neutral-400 text-sm max-w-xs mt-1">
+            No notes have been posted on the platform yet. Be the first to record one!
+          </p>
+        </div>
+      ) : (
+        // Discovery Feed List
+        <div className="flex flex-col gap-4">
+          {notes.map((note) => (
+            <NoteCard key={note.id} note={note} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

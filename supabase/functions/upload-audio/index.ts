@@ -1,0 +1,151 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { S3Client, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.500.0';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+Deno.serve(async (req) => {
+  // Handle CORS Preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    // 1. Verify Request Method
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 2. Verify Environment Variables
+    const requiredEnv = [
+      'SUPABASE_URL',
+      'SUPABASE_ANON_KEY',
+      'R2_ACCOUNT_ID',
+      'R2_ACCESS_KEY',
+      'R2_SECRET_KEY',
+      'R2_BUCKET_NAME',
+      'R2_PUBLIC_URL',
+    ];
+    const missingEnv = requiredEnv.filter((name) => !Deno.env.get(name));
+    if (missingEnv.length > 0) {
+      console.error('Missing configuration env vars:', missingEnv);
+      return new Response(
+        JSON.stringify({ error: `Server misconfiguration. Missing: ${missingEnv.join(', ')}` }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 3. Initialize Supabase Client & Authenticate User
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 4. Parse FormData Upload
+    const formData = await req.formData();
+    const audioFile = formData.get('audio') as File | null;
+    const title = formData.get('title') as string | null;
+    const waveform = formData.get('waveform') as string | null;
+    const durationStr = formData.get('duration') as string | null;
+
+    if (!audioFile || !title) {
+      return new Response(JSON.stringify({ error: 'Missing audio file or title parameters' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const durationSeconds = parseInt(durationStr || '0', 10);
+
+    // 5. Initialize S3 Client targeting Cloudflare R2
+    const s3Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${Deno.env.get('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: Deno.env.get('R2_ACCESS_KEY')!,
+        secretAccessKey: Deno.env.get('R2_SECRET_KEY')!,
+      },
+    });
+
+    // 6. Upload Binary WebM to Cloudflare R2
+    const fileExt = 'webm';
+    const fileName = `note-${crypto.randomUUID()}.${fileExt}`;
+    const fileBuffer = await audioFile.arrayBuffer();
+
+    console.log(`Uploading ${fileName} to R2 bucket: ${Deno.env.get('R2_BUCKET_NAME')}...`);
+    
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: Deno.env.get('R2_BUCKET_NAME')!,
+        Key: fileName,
+        Body: new Uint8Array(fileBuffer),
+        ContentType: 'audio/webm',
+      })
+    );
+
+    const publicUrlBase = Deno.env.get('R2_PUBLIC_URL')!.replace(/\/$/, '');
+    const audioUrl = `${publicUrlBase}/${fileName}`;
+
+    // 7. Insert note into Database
+    console.log('Inserting note into DB with audioUrl:', audioUrl);
+    const { data: note, error: insertError } = await supabaseClient
+      .from('notes')
+      .insert({
+        user_id: user.id,
+        title,
+        audio_url: audioUrl,
+        waveform_url: waveform || '[]',
+        duration_seconds: durationSeconds,
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Database insertion error:', insertError);
+      return new Response(JSON.stringify({ error: insertError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, note }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (err: any) {
+    console.error('Unexpected error in Edge Function:', err);
+    return new Response(JSON.stringify({ error: err.message || 'Internal server error' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});

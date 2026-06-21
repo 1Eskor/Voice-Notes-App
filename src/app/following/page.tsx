@@ -10,7 +10,7 @@ export default function FollowingPage() {
   const [notes, setNotes] = useState<NoteWithProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const setQueue = useAudioPlayer((state) => state.setQueue);
 
   useEffect(() => {
@@ -18,7 +18,7 @@ export default function FollowingPage() {
       try {
         setIsLoading(true);
         const supabase = createClient();
-        
+
         const { data, error: queryError } = await supabase
           .from('notes')
           .select('*, profiles!user_id(username, display_picture)')
