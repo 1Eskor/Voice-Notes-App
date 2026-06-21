@@ -5,61 +5,131 @@ import { useAudioPlayer } from '@/stores/useAudioPlayer';
 
 /**
  * AudioEngine
- * Invisible component that owns the real <audio> DOM element.
- * Registers Media Session API handlers for lock-screen / notification controls.
- * Wires all HTML audio events back into the Zustand store.
+ * Owns the real <audio> element in the DOM tree.
+ * Updates Zustand playback states and syncs with OS media controls.
  */
 export default function AudioEngine() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
   const {
     currentTrack,
+    isPlaying,
     volume,
     setAudioElement,
     setCurrentTime,
     setDuration,
     skipToNext,
-    isPlaying,
     play,
     pause,
   } = useAudioPlayer();
 
-  // ── Mount: create audio element and register it ───────────────────────────
+  // ── 1. Register Audio Element with Zustand Store ───────────────────────────
   useEffect(() => {
-    const audio = new Audio();
-    audio.preload = 'metadata';
-    audioRef.current = audio;
-    setAudioElement(audio);
-
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onLoadedMetadata = () => setDuration(audio.duration);
-    const onEnded = () => skipToNext();
-
-    audio.addEventListener('timeupdate', onTimeUpdate);
-    audio.addEventListener('loadedmetadata', onLoadedMetadata);
-    audio.addEventListener('ended', onEnded);
-
+    if (audioRef.current) {
+      setAudioElement(audioRef.current);
+    }
     return () => {
-      audio.removeEventListener('timeupdate', onTimeUpdate);
-      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
-      audio.removeEventListener('ended', onEnded);
-      audio.pause();
       setAudioElement(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [setAudioElement]);
 
-  // ── Sync volume ───────────────────────────────────────────────────────────
+  // ── 2. Playback Syncing: currentTrack & isPlaying state ────────────────────
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
+    const audio = audioRef.current;
+    if (!audio || !currentTrack) return;
+
+    // Load track source if it has changed
+    if (audio.src !== currentTrack.audio_url) {
+      audio.src = currentTrack.audio_url;
+      audio.load();
+    }
+
+    // Sync play/pause state
+    if (isPlaying) {
+      audio.play().catch((err) => {
+        console.warn('Playback block or error:', err);
+      });
+    } else {
+      audio.pause();
+    }
+  }, [currentTrack, isPlaying]);
+
+  // ── 3. High-Frequency Event listeners (ended, timeupdate) ────────────────
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    let timeUpdateInterval: NodeJS.Timeout | null = null;
+
+    const startTimer = () => {
+      if (!timeUpdateInterval) {
+        timeUpdateInterval = setInterval(() => {
+          setCurrentTime(audio.currentTime);
+        }, 100); // 100ms updates for high-resolution waveform movement
+      }
+    };
+
+    const stopTimer = () => {
+      if (timeUpdateInterval) {
+        clearInterval(timeUpdateInterval);
+        timeUpdateInterval = null;
+      }
+      setCurrentTime(audio.currentTime);
+    };
+
+    // Standard events to stay in sync
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+    };
+
+    const handleEnded = () => {
+      stopTimer();
+      skipToNext();
+    };
+
+    audio.addEventListener('play', startTimer);
+    audio.addEventListener('playing', startTimer);
+    audio.addEventListener('pause', stopTimer);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+
+    // Initial load sync if already metadata is loaded
+    if (audio.duration) {
+      setDuration(audio.duration);
+    }
+
+    return () => {
+      audio.removeEventListener('play', startTimer);
+      audio.removeEventListener('playing', startTimer);
+      audio.removeEventListener('pause', stopTimer);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+      if (timeUpdateInterval) {
+        clearInterval(timeUpdateInterval);
+      }
+    };
+  }, [setCurrentTime, setDuration, skipToNext]);
+
+  // ── 4. Volume Syncing ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
   }, [volume]);
 
-  // ── Media Session API (lock-screen controls) ──────────────────────────────
+  // ── 5. Media Session API (OS Lock screen & controls) ──────────────────────
   useEffect(() => {
     if (!currentTrack || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentTrack.title,
-      artist: currentTrack.profiles?.username ?? 'Unknown',
+      artist: currentTrack.profiles?.username ?? 'Anonymous',
       artwork: currentTrack.profiles?.display_picture
         ? [{ src: currentTrack.profiles.display_picture, sizes: '512x512', type: 'image/jpeg' }]
         : [],
@@ -73,17 +143,12 @@ export default function AudioEngine() {
     );
   }, [currentTrack, play, pause, skipToNext]);
 
-  // ── Sync play/pause state (e.g. external pause from Media Session) ─────────
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (isPlaying && audio.paused) {
-      audio.play().catch(console.error);
-    } else if (!isPlaying && !audio.paused) {
-      audio.pause();
-    }
-  }, [isPlaying]);
-
-  return null; // renders nothing
+  return (
+    <audio
+      id="global-audio"
+      ref={audioRef}
+      className="hidden"
+      preload="metadata"
+    />
+  );
 }
