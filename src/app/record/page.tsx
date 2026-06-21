@@ -37,12 +37,20 @@ export default function RecordPage() {
       streamRef.current = stream;
 
       let recorder: MediaRecorder;
-      const options = { mimeType: 'audio/webm' };
+      let selectedMimeType = 'audio/webm';
+
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        selectedMimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        selectedMimeType = 'audio/mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/aac')) {
+        selectedMimeType = 'audio/aac';
+      }
 
       try {
-        recorder = new MediaRecorder(stream, options);
+        recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
       } catch (err) {
-        console.warn('webm is not supported, falling back to browser default recorder:', err);
+        console.warn('Selected MIME type not supported, falling back to browser default recorder:', err);
         recorder = new MediaRecorder(stream);
       }
 
@@ -128,8 +136,16 @@ export default function RecordPage() {
         Array.from({ length: 80 }, () => parseFloat((Math.random() * 0.8 + 0.2).toFixed(2)))
       );
 
+      const mimeType = audioBlob.type || 'audio/webm';
+      let fileExt = 'webm';
+      if (mimeType.includes('mp4') || mimeType.includes('m4a')) {
+        fileExt = 'm4a';
+      } else if (mimeType.includes('aac')) {
+        fileExt = 'aac';
+      }
+
       const formData = new FormData();
-      formData.append('file', audioBlob, 'recording.webm');
+      formData.append('file', audioBlob, `recording.${fileExt}`);
       formData.append('title', title.trim());
       formData.append('waveform', fakeWaveform);
       formData.append('duration', timer.toString());

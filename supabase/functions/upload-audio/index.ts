@@ -95,19 +95,31 @@ Deno.serve(async (req) => {
       },
     });
 
-    // 6. Upload Binary WebM to Cloudflare R2
-    const fileExt = 'webm';
+    // 6. Upload Binary to Cloudflare R2 with dynamic content-type detection
+    const contentType = audioFile.type || 'audio/webm';
+    let fileExt = 'webm';
+    
+    if (audioFile.name && audioFile.name.includes('.')) {
+      fileExt = audioFile.name.split('.').pop() || 'webm';
+    } else if (contentType.includes('mp4') || contentType.includes('m4a')) {
+      fileExt = 'm4a';
+    } else if (contentType.includes('aac')) {
+      fileExt = 'aac';
+    } else if (contentType.includes('ogg')) {
+      fileExt = 'ogg';
+    }
+
     const fileName = `note-${crypto.randomUUID()}.${fileExt}`;
     const fileBuffer = await audioFile.arrayBuffer();
 
-    console.log(`Uploading ${fileName} to R2 bucket: ${Deno.env.get('R2_BUCKET_NAME')}...`);
+    console.log(`Uploading ${fileName} (${contentType}) to R2 bucket: ${Deno.env.get('R2_BUCKET_NAME')}...`);
     
     await s3Client.send(
       new PutObjectCommand({
         Bucket: Deno.env.get('R2_BUCKET_NAME')!,
         Key: fileName,
         Body: new Uint8Array(fileBuffer),
-        ContentType: 'audio/webm',
+        ContentType: contentType,
       })
     );
 
