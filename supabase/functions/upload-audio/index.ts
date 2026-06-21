@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
 import { S3Client, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.500.0';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,7 +9,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   // Handle CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -109,7 +111,7 @@ Deno.serve(async (req) => {
       fileExt = 'ogg';
     }
 
-    const fileName = `note-${crypto.randomUUID()}.${fileExt}`;
+    const fileName = `note-${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}.${fileExt}`;
     const fileBuffer = await audioFile.arrayBuffer();
 
     console.log(`Uploading ${fileName} (${contentType}) to R2 bucket: ${Deno.env.get('R2_BUCKET_NAME')}...`);
