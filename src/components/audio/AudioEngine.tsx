@@ -83,7 +83,9 @@ export default function AudioEngine() {
     };
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration);
+      if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      }
     };
 
     const handleEnded = () => {
@@ -99,7 +101,7 @@ export default function AudioEngine() {
     audio.addEventListener('ended', handleEnded);
 
     // Initial load sync if already metadata is loaded
-    if (audio.duration) {
+    if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
       setDuration(audio.duration);
     }
 

@@ -72,8 +72,15 @@ export const useAudioPlayer = create<AudioPlayerState>((set, get) => ({
 
   setQueue: (queue, startIndex = 0) => {
     const track = queue[startIndex] ?? null;
-    set({ queue, currentIndex: startIndex, currentTrack: track, currentTime: 0 });
+    set({
+      queue,
+      currentIndex: startIndex,
+      currentTrack: track,
+      currentTime: 0,
+      duration: track?.duration_seconds || 0,
+    });
   },
+
 
   setTrack: (track, queue) => {
     const { audioElement } = get();
@@ -87,7 +94,9 @@ export const useAudioPlayer = create<AudioPlayerState>((set, get) => ({
       queue: idx === -1 ? [track, ...newQueue] : newQueue,
       currentTime: 0,
       isPlaying: true,
+      duration: track.duration_seconds || 0,
     });
+
 
     if (audioElement) {
       audioElement.src = track.audio_url;
@@ -137,7 +146,13 @@ export const useAudioPlayer = create<AudioPlayerState>((set, get) => ({
     }
 
     const nextTrack = queue[nextIndex];
-    set({ currentIndex: nextIndex, currentTrack: nextTrack, currentTime: 0 });
+    set({
+      currentIndex: nextIndex,
+      currentTrack: nextTrack,
+      currentTime: 0,
+      duration: nextTrack.duration_seconds || 0,
+    });
+
 
     if (audioElement) {
       audioElement.src = nextTrack.audio_url;
@@ -158,7 +173,13 @@ export const useAudioPlayer = create<AudioPlayerState>((set, get) => ({
 
     const prevIndex = Math.max(0, currentIndex - 1);
     const prevTrack = queue[prevIndex];
-    set({ currentIndex: prevIndex, currentTrack: prevTrack, currentTime: 0 });
+    set({
+      currentIndex: prevIndex,
+      currentTrack: prevTrack,
+      currentTime: 0,
+      duration: prevTrack.duration_seconds || 0,
+    });
+
 
     if (audioElement) {
       audioElement.src = prevTrack.audio_url;
