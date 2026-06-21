@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { NoteWithProfile, Profile } from '@/lib/types';
 import NoteCard from '@/components/NoteCard';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
+import { useRouter } from 'next/navigation';
+
 
 type DurationFilter = 'All' | 'Quick Hits' | 'Deep Dives';
 
@@ -14,8 +16,20 @@ export default function ProfilePage() {
   const [activeFilter, setActiveFilter] = useState<DurationFilter>('All');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const setQueue = useAudioPlayer((state) => state.setQueue);
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push('/auth');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
 
   useEffect(() => {
     const fetchProfileAndNotes = async () => {
@@ -101,6 +115,14 @@ export default function ProfilePage() {
         <section className="flex flex-col items-center text-center mb-10 p-6 rounded-3xl bg-neutral-900/20 border border-white/5 backdrop-blur-xl relative overflow-hidden">
           <div className="absolute -inset-10 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 blur-2xl opacity-50 pointer-events-none" />
           
+          {/* Sign Out Button */}
+          <button
+            onClick={handleSignOut}
+            className="absolute top-4 right-4 text-xs font-semibold text-neutral-400 hover:text-rose-500 border border-white/5 hover:border-rose-500/20 px-3 py-1.5 rounded-lg bg-neutral-950/80 transition-colors"
+          >
+            Log Out
+          </button>
+
           {/* Display picture / Avatar fallback */}
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-500 to-violet-500 p-[2px] shadow-2xl relative mb-4">
             <div className="w-full h-full rounded-full bg-neutral-950 flex items-center justify-center overflow-hidden">

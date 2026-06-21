@@ -14,6 +14,8 @@ import HandsFreeToggle from '@/components/voice/HandsFreeToggle';
 import MiniPlayer from '@/components/player/MiniPlayer';
 import ExpandedPlayer from '@/components/player/ExpandedPlayer';
 import BottomNav from '@/components/nav/BottomNav';
+import AuthRedirect from '@/components/AuthRedirect';
+
 
 // ─── SEO Metadata ──────────────────────────────────────────────────────────────
 export const metadata: Metadata = {
@@ -64,24 +66,26 @@ export default function RootLayout({
         {/* ── Hands-free toggle (top-right, always visible) ────────────── */}
         <HandsFreeToggle />
 
-        {/* ── Page content ─────────────────────────────────────────────── */}
-        {/*
-          Pages get padding so they don't hide under the MiniPlayer + BottomNav.
-          pb-[9rem] = 4rem BottomNav + ~3.5rem MiniPlayer + breathing room.
-          pt-safe handles notched phones.
-        */}
-        <main
-          className="relative z-0 pb-[9rem] pt-[env(safe-area-inset-top)]"
-          style={{ minHeight: '100dvh' }}
-        >
-          {children}
-        </main>
+        <AuthRedirect>
+          {/* ── Page content ─────────────────────────────────────────────── */}
+          {/*
+            Pages get padding so they don't hide under the MiniPlayer + BottomNav.
+            pb-[9rem] = 4rem BottomNav + ~3.5rem MiniPlayer + breathing room.
+            pt-safe handles notched phones.
+          */}
+          <main
+            className="relative z-0 pb-[9rem] pt-[env(safe-area-inset-top)]"
+            style={{ minHeight: '100dvh' }}
+          >
+            {children}
+          </main>
 
-        {/* ── Global Audio Layer ────────────────────────────────────────── */}
-        {/* Order matters: ExpandedPlayer (z-50) > MiniPlayer (z-30) > BottomNav (z-40) */}
-        <ExpandedPlayer />
-        <MiniPlayer />
-        <BottomNav />
+          {/* ── Global Audio Layer ────────────────────────────────────────── */}
+          {/* Order matters: ExpandedPlayer (z-50) > MiniPlayer (z-30) > BottomNav (z-40) */}
+          <ExpandedPlayer />
+          <MiniPlayer />
+          <BottomNav />
+        </AuthRedirect>
       </body>
     </html>
   );
