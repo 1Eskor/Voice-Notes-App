@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
 
     // 4. Parse FormData Upload
     const formData = await req.formData();
-    const audioFile = formData.get('audio') as File | null;
+    const audioFile = (formData.get('file') || formData.get('audio')) as File | null;
     const title = formData.get('title') as string | null;
     const waveform = formData.get('waveform') as string | null;
     const durationStr = formData.get('duration') as string | null;

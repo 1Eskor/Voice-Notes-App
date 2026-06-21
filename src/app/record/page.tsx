@@ -38,7 +38,7 @@ export default function RecordPage() {
 
       let recorder: MediaRecorder;
       const options = { mimeType: 'audio/webm' };
-      
+
       try {
         recorder = new MediaRecorder(stream, options);
       } catch (err) {
@@ -58,7 +58,7 @@ export default function RecordPage() {
         const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
         const blob = new Blob(chunksRef.current, { type: mimeType });
         setAudioBlob(blob);
-        
+
         // Stop all track streams to release the mic icon
         if (streamRef.current) {
           streamRef.current.getTracks().forEach((track) => track.stop());
@@ -96,7 +96,7 @@ export default function RecordPage() {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    
+
     setIsRecording(false);
   };
 
@@ -116,7 +116,7 @@ export default function RecordPage() {
       setUploadStatus(null);
 
       const supabase = createClient();
-      
+
       // Check if user is authenticated before triggering the upload
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -129,7 +129,7 @@ export default function RecordPage() {
       );
 
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
+      formData.append('file', audioBlob, 'recording.webm');
       formData.append('title', title.trim());
       formData.append('waveform', fakeWaveform);
       formData.append('duration', timer.toString());
@@ -143,7 +143,7 @@ export default function RecordPage() {
 
       alert('Upload successful!');
       setUploadStatus({ success: true });
-      
+
       // Reset form
       setTitle('');
       setAudioBlob(null);
@@ -173,19 +173,17 @@ export default function RecordPage() {
       {/* Recording Display Container */}
       <div className="w-full bg-neutral-900/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center gap-6 shadow-2xl relative overflow-hidden backdrop-blur-xl">
         {/* Decorative backdrop glow */}
-        <div className={`absolute -inset-10 bg-gradient-to-br transition-all duration-1000 blur-3xl opacity-10 pointer-events-none ${
-          isRecording ? 'from-rose-500 to-red-500 scale-110' : 'from-cyan-500 to-violet-500'
-        }`} />
+        <div className={`absolute -inset-10 bg-gradient-to-br transition-all duration-1000 blur-3xl opacity-10 pointer-events-none ${isRecording ? 'from-rose-500 to-red-500 scale-110' : 'from-cyan-500 to-violet-500'
+          }`} />
 
         {/* Large Central Mic Button */}
         <button
           onClick={handleMicClick}
           disabled={isUploading}
-          className={`w-24 h-24 rounded-full flex items-center justify-center relative transition-all duration-300 ${
-            isRecording
+          className={`w-24 h-24 rounded-full flex items-center justify-center relative transition-all duration-300 ${isRecording
               ? 'bg-rose-500 hover:bg-rose-600 scale-105 shadow-lg shadow-rose-500/20'
               : 'bg-neutral-800 hover:bg-neutral-750 border border-white/10 hover:border-white/20'
-          }`}
+            }`}
           aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
         >
           {isRecording ? (
