@@ -10,6 +10,7 @@ export default function RecordPage() {
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ success?: boolean; error?: string } | null>(null);
+  const [recordingMimeType, setRecordingMimeType] = useState('audio/webm');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -46,6 +47,8 @@ export default function RecordPage() {
       } else if (MediaRecorder.isTypeSupported('audio/aac')) {
         selectedMimeType = 'audio/aac';
       }
+
+      setRecordingMimeType(selectedMimeType);
 
       try {
         recorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
@@ -136,7 +139,7 @@ export default function RecordPage() {
         Array.from({ length: 80 }, () => parseFloat((Math.random() * 0.8 + 0.2).toFixed(2)))
       );
 
-      const mimeType = audioBlob.type || 'audio/webm';
+      const mimeType = audioBlob.type || recordingMimeType;
       let fileExt = 'webm';
       if (mimeType.includes('mp4') || mimeType.includes('m4a')) {
         fileExt = 'm4a';
