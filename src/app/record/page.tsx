@@ -150,6 +150,12 @@ export default function RecordPage() {
       formData.append('waveform', fakeWaveform);
       formData.append('duration', timer.toString());
 
+      console.log("DEBUG FRONTEND BLOB:", {
+        fileInstance: formData.get('file'),
+        mimeType: (formData.get('file') as Blob)?.type,
+        sizeBytes: (formData.get('file') as Blob)?.size
+      });
+
       // Invoke the Supabase Edge Function
       const { data, error } = await supabase.functions.invoke('upload-audio', {
         body: formData,
