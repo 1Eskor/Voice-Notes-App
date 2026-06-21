@@ -113,12 +113,30 @@ export default function NoteCard({ note }: NoteCardProps) {
           {note.title}
         </h3>
 
-        {/* Waveform component. For now, pass empty array per user spec. */}
-        <Waveform
-          waveformData={[]}
-          currentTime={isCurrentTrack ? currentTime : 0}
-          duration={isCurrentTrack ? duration : note.duration_seconds}
-        />
+        {/* Parse waveform data from note.waveform_url (handles JSON array or comma-separated list fallbacks) */}
+        {(() => {
+          let waveformArray: number[] = [];
+          try {
+            if (note.waveform_url) {
+              const trimmed = note.waveform_url.trim();
+              if (trimmed.startsWith('[')) {
+                waveformArray = JSON.parse(trimmed);
+              } else if (trimmed.length > 0) {
+                waveformArray = trimmed.split(',').map(Number).filter((n) => !isNaN(n));
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse waveform_url:', e);
+          }
+
+          return (
+            <Waveform
+              waveformData={waveformArray}
+              currentTime={isCurrentTrack ? currentTime : 0}
+              duration={isCurrentTrack ? duration : note.duration_seconds}
+            />
+          );
+        })()}
       </div>
 
       {/* Right: Like Button */}
