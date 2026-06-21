@@ -2,6 +2,7 @@
 
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import { Play, Pause, SkipBack, SkipForward, ChevronUp } from 'lucide-react';
+import Link from 'next/link';
 
 /**
  * MiniPlayer
@@ -64,7 +65,17 @@ export default function MiniPlayer() {
         >
           <p className="text-white text-sm font-semibold truncate">{currentTrack.title}</p>
           <p className="text-white/50 text-xs truncate">
-            {currentTrack.profiles?.username ?? ''}
+            {currentTrack.profiles?.username ? (
+              <Link
+                href={`/profile/${currentTrack.profiles.username}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-cyan-450 transition-colors"
+              >
+                @{currentTrack.profiles.username}
+              </Link>
+            ) : (
+              'Anonymous'
+            )}
           </p>
         </div>
 

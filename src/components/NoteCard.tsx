@@ -1,9 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NoteWithProfile } from '@/lib/types';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import Waveform from './Waveform';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 interface NoteCardProps {
   note: NoteWithProfile;
@@ -44,6 +46,34 @@ export default function NoteCard({ note }: NoteCardProps) {
   const isCurrentTrack = currentTrack?.id === note.id;
   const isNotePlaying = isCurrentTrack && isPlaying;
 
+  const [isLiked, setIsLiked] = useState(note.is_liked || false);
+  const [likesCount, setLikesCount] = useState(note.likes_count || 0);
+
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: likeRecord } = await supabase
+          .from('likes')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('note_id', note.id)
+          .maybeSingle();
+
+        if (likeRecord) {
+          setIsLiked(true);
+        }
+      } catch (err) {
+        console.error('Error checking like status:', err);
+      }
+    };
+
+    checkLikeStatus();
+  }, [note.id]);
+
   const handlePlayCard = () => {
     // If it's already playing, clicking again toggles play/pause
     if (isCurrentTrack) {
@@ -57,10 +87,43 @@ export default function NoteCard({ note }: NoteCardProps) {
     }
   };
 
-  const handleLike = (e: React.MouseEvent) => {
+  const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Like logic placeholder (will be fully integrated in Phase 3+)
-    console.log('Liked note:', note.id);
+    
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert('You must be logged in to like voice notes!');
+        return;
+      }
+
+      const nextLikedState = !isLiked;
+      const nextLikesCount = nextLikedState ? likesCount + 1 : Math.max(0, likesCount - 1);
+
+      // Optimistically update frontend UI states
+      setIsLiked(nextLikedState);
+      setLikesCount(nextLikesCount);
+
+      if (nextLikedState) {
+        const { error } = await supabase
+          .from('likes')
+          .insert({ user_id: user.id, note_id: note.id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('note_id', note.id);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Failed to toggle like record:', err);
+      // Revert optimistic state values
+      setIsLiked(isLiked);
+      setLikesCount(likesCount);
+    }
   };
 
   const username = note.profiles?.username ?? 'Anonymous';
@@ -102,9 +165,13 @@ export default function NoteCard({ note }: NoteCardProps) {
       {/* Middle: Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-xs text-white/40 mb-1">
-          <span className="font-medium text-white/60 hover:text-cyan-400 transition-colors">
+          <Link
+            href={`/profile/${username}`}
+            onClick={(e) => e.stopPropagation()}
+            className="font-medium text-white/60 hover:text-cyan-400 transition-colors"
+          >
             @{username}
-          </span>
+          </Link>
           <span>•</span>
           <span>{formatTimeAgo(note.created_at)}</span>
         </div>
@@ -147,12 +214,12 @@ export default function NoteCard({ note }: NoteCardProps) {
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          fill={note.is_liked ? 'currentColor' : 'none'}
+          fill={isLiked ? 'currentColor' : 'none'}
           viewBox="0 0 24 24"
           strokeWidth={1.5}
           stroke="currentColor"
           className={`w-4 h-4 transition-transform duration-200 ${
-            note.is_liked ? 'text-rose-500 scale-110' : 'group-hover:scale-105'
+            isLiked ? 'text-rose-500 scale-110' : 'group-hover:scale-105'
           }`}
         >
           <path
