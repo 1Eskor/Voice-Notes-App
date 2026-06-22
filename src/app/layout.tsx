@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'VoiceNote',
+    title: 'Takes',
   },
 };
 
@@ -54,12 +54,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`dark ${inter.variable}`}>
-      <head>
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Takes" />
-      </head>
+      <head />
       <body className="min-h-dvh bg-[#080808] text-white overflow-x-hidden font-[var(--font-inter),system-ui,sans-serif]">
         {/* ── Invisible global systems ─────────────────────────────────── */}
         {/* Owns the <audio> element and registers Media Session API */}

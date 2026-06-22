@@ -208,8 +208,8 @@ export default function RecordPage() {
           onClick={handleMicClick}
           disabled={isUploading}
           className={`w-24 h-24 rounded-full flex items-center justify-center relative transition-all duration-300 ${isRecording
-              ? 'bg-rose-500 hover:bg-rose-600 scale-105 shadow-lg shadow-rose-500/20'
-              : 'bg-neutral-800 hover:bg-neutral-750 border border-white/10 hover:border-white/20'
+            ? 'bg-rose-500 hover:bg-rose-600 scale-105 shadow-lg shadow-rose-500/20'
+            : 'bg-neutral-800 hover:bg-neutral-750 border border-white/10 hover:border-white/20'
             }`}
           aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
         >
