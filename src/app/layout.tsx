@@ -9,8 +9,6 @@ const inter = Inter({
 });
 
 import AudioEngine from '@/components/audio/AudioEngine';
-import VoiceCommandListener from '@/components/voice/VoiceCommandListener';
-import HandsFreeToggle from '@/components/voice/HandsFreeToggle';
 import MiniPlayer from '@/components/player/MiniPlayer';
 import ExpandedPlayer from '@/components/player/ExpandedPlayer';
 import BottomNav from '@/components/nav/BottomNav';
@@ -56,15 +54,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`dark ${inter.variable}`}>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Takes" />
+      </head>
       <body className="min-h-dvh bg-[#080808] text-white overflow-x-hidden font-[var(--font-inter),system-ui,sans-serif]">
         {/* ── Invisible global systems ─────────────────────────────────── */}
         {/* Owns the <audio> element and registers Media Session API */}
         <AudioEngine />
-        {/* Listens for "skip"/"next" voice commands */}
-        <VoiceCommandListener />
-
-        {/* ── Hands-free toggle (top-right, always visible) ────────────── */}
-        <HandsFreeToggle />
 
         <AuthRedirect>
           {/* ── Page content ─────────────────────────────────────────────── */}

@@ -134,10 +134,9 @@ export default function RecordPage() {
         throw new Error('You must be logged in to upload voice notes.');
       }
 
-      // Generate a mock waveform string (80 points from 0.2 to 1.0)
-      const fakeWaveform = JSON.stringify(
-        Array.from({ length: 80 }, () => parseFloat((Math.random() * 0.8 + 0.2).toFixed(2)))
-      );
+      // Generate the real waveform peaks from the recorded audio blob
+      const realWaveformPeaks = await generateWaveformFromBlob(audioBlob);
+      const waveformStr = JSON.stringify(realWaveformPeaks);
 
       const mimeType = audioBlob.type || recordingMimeType;
       let fileExt = 'webm';
@@ -150,7 +149,7 @@ export default function RecordPage() {
       const formData = new FormData();
       formData.append('file', audioBlob, `recording.${fileExt}`);
       formData.append('title', title.trim());
-      formData.append('waveform', fakeWaveform);
+      formData.append('waveform', waveformStr);
       formData.append('duration', timer.toString());
 
       console.log("DEBUG FRONTEND BLOB:", {
@@ -292,4 +291,47 @@ export default function RecordPage() {
       </div>
     </div>
   );
+}
+
+// Helper to generate a real 80-point waveform from recorded audio blob
+async function generateWaveformFromBlob(blob: Blob): Promise<number[]> {
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    // Supporting Safari webkitAudioContext fallback
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const rawData = audioBuffer.getChannelData(0);
+
+    const samplesCount = 80;
+    const blockSize = Math.floor(rawData.length / samplesCount);
+    const peaks: number[] = [];
+
+    for (let i = 0; i < samplesCount; i++) {
+      const start = i * blockSize;
+      let max = 0;
+      for (let j = 0; j < blockSize; j++) {
+        const val = Math.abs(rawData[start + j] || 0);
+        if (val > max) {
+          max = val;
+        }
+      }
+      peaks.push(max);
+    }
+
+    // Normalize peaks relative to highest peak value
+    const maxPeak = Math.max(...peaks);
+    const normalizedPeaks = peaks.map((p) => {
+      if (maxPeak === 0) return 0.1;
+      const normalized = p / maxPeak;
+      // Clamp between 0.1 and 1.0
+      return parseFloat(Math.max(0.1, normalized).toFixed(2));
+    });
+
+    return normalizedPeaks;
+  } catch (err) {
+    console.warn('Failed to decode audio context waveform, generating fallback peaks:', err);
+    // Fallback fallback pattern in case of decoding errors
+    return Array.from({ length: 80 }, () => parseFloat((Math.random() * 0.8 + 0.2).toFixed(2)));
+  }
 }

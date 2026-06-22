@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { NoteWithProfile } from '@/lib/types';
 import NoteCard from '@/components/NoteCard';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
+import VoiceSkipListener from '@/components/VoiceSkipListener';
 
 export default function FollowingPage() {
   const [notes, setNotes] = useState<NoteWithProfile[]>([]);
@@ -12,6 +13,8 @@ export default function FollowingPage() {
   const [error, setError] = useState<string | null>(null);
 
   const setQueue = useAudioPlayer((state) => state.setQueue);
+  const isHandsFreeEnabled = useAudioPlayer((state) => state.isHandsFreeEnabled);
+  const toggleHandsFree = useAudioPlayer((state) => state.toggleHandsFree);
 
   useEffect(() => {
     const fetchNotes = async () => {
@@ -54,14 +57,43 @@ export default function FollowingPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
+      {isHandsFreeEnabled && <VoiceSkipListener />}
+
       {/* Feed Header */}
-      <header className="mb-8">
-        <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
-          Following
-        </h1>
-        <p className="text-sm text-neutral-400 mt-1">
-          Stay updated with audio logs from people you follow.
-        </p>
+      <header className="mb-8 flex justify-between items-start gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-white to-white/60 bg-clip-text text-transparent">
+            Following
+          </h1>
+          <p className="text-sm text-neutral-400 mt-1">
+            Stay updated with audio logs from people you follow.
+          </p>
+        </div>
+
+        {/* Hands-Free Mode Toggle */}
+        <button
+          onClick={toggleHandsFree}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-300 cursor-pointer border ${
+            isHandsFreeEnabled
+              ? 'bg-gradient-to-r from-violet-500 to-pink-500 text-white border-transparent shadow-lg shadow-violet-500/20'
+              : 'bg-neutral-900/40 text-neutral-400 hover:text-white border-white/5 hover:bg-neutral-900/80'
+          }`}
+          title={isHandsFreeEnabled ? 'Disable Hands-Free Mode' : 'Enable Hands-Free Mode'}
+        >
+          {isHandsFreeEnabled ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+              <span>Hands-Free On</span>
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+              </svg>
+              <span>Hands-Free Off</span>
+            </>
+          )}
+        </button>
       </header>
 
       {/* Feed Content */}
