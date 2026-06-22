@@ -159,9 +159,12 @@ export default function RecordPage() {
         sizeBytes: (formData.get('file') as Blob)?.size
       });
 
-      // Invoke the Supabase Edge Function
+      // Invoke the Supabase Edge Function, passing the access token as a security header
       const { data, error } = await supabase.functions.invoke('upload-audio', {
         body: formData,
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
       });
 
       if (error) throw error;
