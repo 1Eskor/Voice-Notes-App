@@ -7,6 +7,7 @@ export interface Profile {
   created_at: string;
   is_premium?: boolean;
   bio?: string | null;
+  tagging_preference?: 'everyone' | 'following' | 'following_me' | 'none';
 }
 
 export interface Note {
@@ -39,6 +40,7 @@ export interface Comment {
   user_id: string;
   content: string;
   created_at: string;
+  parent_id?: string | null;
   profiles?: Profile;
 }
 

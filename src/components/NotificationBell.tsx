@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 interface NotificationItem {
   id: string;
-  type: 'like' | 'comment' | 'follow';
+  type: 'like' | 'comment' | 'follow' | 'tag';
   is_read: boolean;
   created_at: string;
   actor: {
@@ -267,6 +267,14 @@ export default function NotificationBell() {
                             </>
                           )}
                           {notif.type === 'follow' && 'started following you'}
+                          {notif.type === 'tag' && (
+                            <>
+                              tagged you in a comment on{' '}
+                              <span className="font-semibold text-white">
+                                &quot;{notif.note?.title || 'Voice Note'}&quot;
+                              </span>
+                            </>
+                          )}
                         </p>
                         <span className="text-[9px] text-neutral-500 block mt-1 font-medium">
                           {formatRelativeTime(notif.created_at)}

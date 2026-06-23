@@ -12,8 +12,38 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSavingBio, setIsSavingBio] = useState(false);
+  const [isUpdatingTagging, setIsUpdatingTagging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  const handleUpdateTaggingPreference = async (
+    preference: 'everyone' | 'following' | 'following_me' | 'none'
+  ) => {
+    if (!profile || isUpdatingTagging) return;
+
+    try {
+      setIsUpdatingTagging(true);
+      setError(null);
+      const supabase = createClient();
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ tagging_preference: preference })
+        .eq('id', profile.id);
+
+      if (updateError) throw updateError;
+
+      setProfile({
+        ...profile,
+        tagging_preference: preference,
+      });
+    } catch (err: any) {
+      console.error('Error updating tagging preference:', err);
+      setError(err.message || 'Failed to update tagging preference.');
+    } finally {
+      setIsUpdatingTagging(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -185,6 +215,37 @@ export default function SettingsPage() {
                     {isSavingBio ? 'Saving...' : 'Save Bio'}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Tagging Privacy Section */}
+            <div className="w-full bg-neutral-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-xl">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">
+                Tagging Privacy
+              </h2>
+              <div className="flex flex-col gap-3">
+                <p className="text-xs text-neutral-400 leading-relaxed">
+                  Choose who can mention and tag you in comments. If tagged, you will receive a notification.
+                </p>
+                <div className="relative">
+                  <select
+                    value={profile.tagging_preference || 'everyone'}
+                    onChange={(e) => handleUpdateTaggingPreference(e.target.value as any)}
+                    disabled={isUpdatingTagging}
+                    className="w-full px-3 py-2.5 bg-neutral-950 border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none transition-colors cursor-pointer appearance-none"
+                  >
+                    <option value="everyone">Everyone</option>
+                    <option value="following_me">People I follow or who follow me</option>
+                    <option value="following">Only people I follow</option>
+                    <option value="none">No one</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-neutral-400">
+                    <span className="text-[10px]">▼</span>
+                  </div>
+                </div>
+                {isUpdatingTagging && (
+                  <span className="text-[10px] text-cyan-400 animate-pulse">Updating preference...</span>
+                )}
               </div>
             </div>
 

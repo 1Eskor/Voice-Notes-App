@@ -219,3 +219,105 @@ begin
   end if;
 end;
 $$;
+
+
+-- 8. Add parent_id column to comments table
+alter table public.comments 
+add column if not exists parent_id uuid references public.comments(id) on delete cascade;
+
+-- 9. Add tagging_preference column to profiles table
+alter table public.profiles 
+add column if not exists tagging_preference text default 'everyone' 
+check (tagging_preference in ('everyone', 'following', 'following_me', 'none'));
+
+-- 10. Create comment_likes table
+create table if not exists public.comment_likes (
+  user_id    uuid references public.profiles(id) on delete cascade not null,
+  comment_id uuid references public.comments(id) on delete cascade not null,
+  created_at timestamp with time zone default now(),
+  primary key (user_id, comment_id)
+);
+
+alter table public.comment_likes enable row level security;
+
+create policy "Comment likes are publicly readable"
+  on public.comment_likes for select using (true);
+
+create policy "Users can like comments"
+  on public.comment_likes for insert with check (auth.uid() = user_id);
+
+create policy "Users can remove comment likes"
+  on public.comment_likes for delete using (auth.uid() = user_id);
+
+-- 11. Recreate notifications type constraint to support 'tag'
+alter table public.notifications 
+drop constraint if exists notifications_type_check;
+
+alter table public.notifications 
+add constraint notifications_type_check 
+check (type in ('like', 'comment', 'follow', 'tag'));
+
+-- 12. Create trigger function to process comment @tags
+create or replace function public.process_comment_tags()
+returns trigger as $$
+declare
+  r_match record;
+  v_tagged_user_id uuid;
+  v_pref text;
+  v_allowed boolean;
+begin
+  for r_match in 
+    select distinct (regexp_matches(new.content, '@([a-zA-Z0-9_]+)', 'g'))[1] as username
+  loop
+    select id, coalesce(tagging_preference, 'everyone') into v_tagged_user_id, v_pref 
+    from public.profiles 
+    where username = r_match.username;
+
+    if v_tagged_user_id is not null and v_tagged_user_id != new.user_id then
+      v_allowed := false;
+
+      if v_pref = 'everyone' then
+        v_allowed := true;
+      elsif v_pref = 'none' then
+        v_allowed := false;
+      elsif v_pref = 'following' then
+        select exists(
+          select 1 from public.follows 
+          where follower_id = v_tagged_user_id and following_id = new.user_id
+        ) into v_allowed;
+      elsif v_pref = 'following_me' then
+        select exists(
+          select 1 from public.follows 
+          where (follower_id = v_tagged_user_id and following_id = new.user_id)
+             or (follower_id = new.user_id and following_id = v_tagged_user_id)
+        ) into v_allowed;
+      end if;
+
+      if v_allowed then
+        insert into public.notifications (user_id, actor_id, type, note_id)
+        values (v_tagged_user_id, new.user_id, 'tag', new.note_id);
+      end if;
+    end if;
+  end loop;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_comment_tagged on public.comments;
+create trigger on_comment_tagged
+  after insert on public.comments
+  for each row execute procedure public.process_comment_tags();
+
+-- 13. Add comment_likes to Supabase Realtime publication
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    if not exists (
+      select 1 from pg_publication_tables 
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'comment_likes'
+    ) then
+      alter publication supabase_realtime add table public.comment_likes;
+    end if;
+  end if;
+end;
+$$;
