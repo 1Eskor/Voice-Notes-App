@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
+import { createClient } from '@/lib/supabase/client';
 
 /**
  * AudioEngine
@@ -51,6 +52,20 @@ export default function AudioEngine() {
       });
     } else {
       audio.pause();
+    }
+  }, [currentTrack, isPlaying]);
+
+  // ── 2a. Play Count Tracker effect ──────────────────────────────────────────
+  const lastPlayedTrackIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (isPlaying && currentTrack && lastPlayedTrackIdRef.current !== currentTrack.id) {
+      lastPlayedTrackIdRef.current = currentTrack.id;
+      const supabase = createClient();
+      supabase.rpc('increment_plays_count', { p_note_id: currentTrack.id })
+        .then(({ error }) => {
+          if (error) console.error('Failed to increment play count:', error);
+        });
     }
   }, [currentTrack, isPlaying]);
 

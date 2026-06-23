@@ -24,7 +24,7 @@ export default function FollowingPage() {
 
         const { data, error: queryError } = await supabase
           .from('notes')
-          .select('*, profiles!user_id(username, display_picture)')
+          .select('*, profiles!user_id(username, display_picture, is_premium)')
           .order('created_at', { ascending: false })
           .limit(20);
 

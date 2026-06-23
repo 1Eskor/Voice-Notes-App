@@ -123,7 +123,7 @@ export default function ExpandedPlayer() {
         const supabase = createClient();
         const { data, error } = await supabase
           .from('comments')
-          .select('*, profiles!user_id(username, display_picture)')
+          .select('*, profiles!user_id(username, display_picture, is_premium)')
           .eq('note_id', currentTrack.id)
           .order('created_at', { ascending: false }); // Newest comments first like SoundCloud
 
@@ -292,9 +292,12 @@ export default function ExpandedPlayer() {
                     <Link
                       href={`/profile/${currentTrack.profiles?.username}`}
                       onClick={() => setPlayerExpanded(false)}
-                      className="inline-block text-cyan-400 hover:text-cyan-300 text-sm mt-1 transition-colors font-medium"
+                      className="inline-flex items-center gap-1 text-cyan-400 hover:text-cyan-300 text-sm mt-1 transition-colors font-medium"
                     >
-                      @{currentTrack.profiles?.username || 'Anonymous'}
+                      <span>@{currentTrack.profiles?.username || 'Anonymous'}</span>
+                      {currentTrack.profiles?.is_premium && (
+                        <span className="text-yellow-400 text-xs" title="Premium User">✨</span>
+                      )}
                     </Link>
                   </div>
                 </div>
@@ -493,9 +496,12 @@ export default function ExpandedPlayer() {
                           <Link
                             href={`/profile/${comment.profiles?.username}`}
                             onClick={() => setPlayerExpanded(false)}
-                            className="font-bold text-white/80 text-xs hover:text-cyan-400 transition-colors"
+                            className="font-bold text-white/80 text-xs hover:text-cyan-400 transition-colors flex items-center gap-1"
                           >
-                            @{comment.profiles?.username || 'Anonymous'}
+                            <span>@{comment.profiles?.username || 'Anonymous'}</span>
+                            {comment.profiles?.is_premium && (
+                              <span className="text-yellow-400 text-[10px]" title="Premium User">✨</span>
+                            )}
                           </Link>
                           <span className="text-[9px] text-white/20">
                             {formatTimeAgo(comment.created_at)}

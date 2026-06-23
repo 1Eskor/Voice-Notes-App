@@ -277,12 +277,23 @@ export default function NoteCard({ note }: NoteCardProps) {
           <Link
             href={`/profile/${username}`}
             onClick={(e) => e.stopPropagation()}
-            className="font-medium text-white/60 hover:text-cyan-400 transition-colors"
+            className="font-medium text-white/60 hover:text-cyan-400 transition-colors flex items-center gap-1"
           >
-            @{username}
+            <span>@{username}</span>
+            {note.profiles?.is_premium && (
+              <span className="text-yellow-400 text-[10px]" title="Premium User">✨</span>
+            )}
           </Link>
           <span>•</span>
           <span>{formatTimeAgo(note.created_at)}</span>
+          {note.is_promoted && (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[9px] uppercase tracking-wider">
+                Promoted
+              </span>
+            </>
+          )}
         </div>
 
         {isEditingTitle ? (

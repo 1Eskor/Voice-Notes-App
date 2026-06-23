@@ -5,6 +5,7 @@ export interface Profile {
   username: string;
   display_picture: string | null;
   created_at: string;
+  is_premium?: boolean;
 }
 
 export interface Note {
@@ -15,6 +16,8 @@ export interface Note {
   waveform_url: string; // URL to a JSON file: number[]
   duration_seconds: number;
   likes_count: number;
+  plays_count?: number;
+  is_promoted?: boolean;
   created_at: string;
   // Joined fields (not in DB, populated via query joins)
   profiles?: Profile;

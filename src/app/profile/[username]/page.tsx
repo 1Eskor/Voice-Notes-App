@@ -4,8 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { NoteWithProfile, Profile } from '@/lib/types';
 import NoteCard from '@/components/NoteCard';
+import CreatorStats from '@/components/CreatorStats';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 type DurationFilter = 'All' | 'Quick Hits' | 'Deep Dives';
 
@@ -149,7 +151,7 @@ export default function UserProfilePage({ params }: ProfilePageProps) {
         // 5. Fetch Target user's Notes
         let query = supabase
           .from('notes')
-          .select('*, profiles!user_id(username, display_picture)')
+          .select('*, profiles!user_id(username, display_picture, is_premium)')
           .eq('user_id', targetUserId);
 
         if (activeFilter === 'Quick Hits') {
@@ -222,14 +224,22 @@ export default function UserProfilePage({ params }: ProfilePageProps) {
             <section className="flex flex-col items-center text-center mb-10 p-6 rounded-3xl bg-neutral-900/20 border border-white/5 backdrop-blur-xl relative overflow-hidden">
               <div className="absolute -inset-10 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 blur-2xl opacity-50 pointer-events-none" />
               
-              {/* Sign Out Button (Only for own profiles) */}
+              {/* Actions Header Group (Only for own profiles) */}
               {isOwnProfile && (
-                <button
-                  onClick={handleSignOut}
-                  className="absolute top-4 right-4 text-xs font-semibold text-neutral-400 hover:text-rose-500 border border-white/5 hover:border-rose-500/20 px-3 py-1.5 rounded-lg bg-neutral-950/80 transition-colors"
-                >
-                  Log Out
-                </button>
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <Link
+                    href="/settings"
+                    className="text-xs font-semibold text-neutral-400 hover:text-white border border-white/5 hover:border-white/20 px-3 py-1.5 rounded-lg bg-neutral-950/80 transition-colors flex items-center gap-1"
+                  >
+                    ⚙️ Settings
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="text-xs font-semibold text-neutral-400 hover:text-rose-500 border border-white/5 hover:border-rose-500/20 px-3 py-1.5 rounded-lg bg-neutral-950/80 transition-colors"
+                  >
+                    Log Out
+                  </button>
+                </div>
               )}
 
               {/* Avatar picture */}
@@ -289,6 +299,10 @@ export default function UserProfilePage({ params }: ProfilePageProps) {
                 </div>
               </div>
             </section>
+
+            {isOwnProfile && (
+              <CreatorStats userId={profile.id} followersCount={followersCount} />
+            )}
 
             {/* Filter Tabs */}
             <div className="flex items-center gap-2 mb-6 p-[4px] rounded-xl bg-neutral-950 border border-white/5 max-w-sm">
