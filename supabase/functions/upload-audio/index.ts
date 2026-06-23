@@ -1,13 +1,13 @@
 // @ts-nocheck
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
-import { S3Client, PutObjectCommand } from 'npm:@aws-sdk/client-s3@3.500.0';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from 'npm:@aws-sdk/client-s3@3.500.0';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
 };
 
 serve(async (req) => {
@@ -18,7 +18,7 @@ serve(async (req) => {
 
   try {
     // 1. Verify Request Method
-    if (req.method !== 'POST') {
+    if (req.method !== 'POST' && req.method !== 'DELETE') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -72,7 +72,91 @@ serve(async (req) => {
       });
     }
 
-    // 4. Parse FormData Upload
+    // 4. Handle DELETE request
+    if (req.method === 'DELETE') {
+      let body;
+      try {
+        body = await req.json();
+      } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { noteId, audioUrl } = body;
+      if (!noteId || !audioUrl) {
+        return new Response(JSON.stringify({ error: 'Missing noteId or audioUrl parameters' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Delete note from database first. RLS enforces that only the owner can delete the note.
+      const { data: deletedNotes, error: deleteError } = await supabaseClient
+        .from('notes')
+        .delete()
+        .eq('id', noteId)
+        .select();
+
+      if (deleteError) {
+        console.error('Database deletion error:', deleteError);
+        return new Response(JSON.stringify({ error: deleteError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // If no notes were deleted, it means either the note does not exist or user doesn't own it
+      if (!deletedNotes || deletedNotes.length === 0) {
+        return new Response(JSON.stringify({ error: 'Note not found or unauthorized' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Initialize S3 Client targeting Cloudflare R2
+      const s3Client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${Deno.env.get('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: Deno.env.get('R2_ACCESS_KEY')!,
+          secretAccessKey: Deno.env.get('R2_SECRET_KEY')!,
+        },
+      });
+
+      // Extract filename key from audioUrl
+      let fileName: string;
+      try {
+        const url = new URL(audioUrl);
+        fileName = url.pathname.split('/').pop() || '';
+      } catch (e) {
+        fileName = audioUrl.split('/').pop() || '';
+      }
+
+      if (!fileName) {
+        return new Response(JSON.stringify({ error: 'Invalid audioUrl path' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      console.log(`Deleting ${fileName} from R2 bucket: ${Deno.env.get('R2_BUCKET_NAME')}...`);
+
+      await s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: Deno.env.get('R2_BUCKET_NAME')!,
+          Key: fileName,
+        })
+      );
+
+      return new Response(JSON.stringify({ success: true, message: 'Note deleted successfully' }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 5. Parse FormData Upload
     const formData = await req.formData();
     const audioFile = (formData.get('file') || formData.get('audio')) as File | null;
     const title = formData.get('title') as string | null;

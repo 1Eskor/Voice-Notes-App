@@ -174,10 +174,22 @@ export default function NoteCard({ note }: NoteCardProps) {
   const handleDeleteNote = async () => {
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from('notes')
-        .delete()
-        .eq('id', note.id);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('You must be logged in to delete notes.');
+      }
+
+      const { error } = await supabase.functions.invoke('upload-audio', {
+        method: 'DELETE',
+        body: { 
+          noteId: note.id, 
+          audioUrl: note.audio_url 
+        },
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
 
       if (error) throw error;
 
