@@ -6,6 +6,7 @@ export interface Profile {
   display_picture: string | null;
   created_at: string;
   is_premium?: boolean;
+  bio?: string | null;
 }
 
 export interface Note {
@@ -47,4 +48,5 @@ export interface NoteWithProfile extends Note {
   profiles: Profile;
   waveform_data?: number[]; // Resolved from waveform_url
   is_liked?: boolean;
+  reposted_by?: string;
 }

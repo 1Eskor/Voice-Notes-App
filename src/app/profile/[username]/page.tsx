@@ -261,6 +261,11 @@ export default function UserProfilePage({ params }: ProfilePageProps) {
               </div>
 
               <h1 className="text-2xl font-extrabold text-white">@{profile.username}</h1>
+              {profile.bio && (
+                <p className="text-xs text-neutral-450 mt-2 max-w-sm px-6 leading-relaxed whitespace-pre-wrap">
+                  {profile.bio}
+                </p>
+              )}
               
               {/* Follow / Edit Button */}
               <div className="mt-4">

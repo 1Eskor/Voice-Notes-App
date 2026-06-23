@@ -10,7 +10,6 @@ export default function DiscoveryPage() {
   const [notes, setNotes] = useState<NoteWithProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   const setQueue = useAudioPlayer((state) => state.setQueue);
 
@@ -19,36 +18,16 @@ export default function DiscoveryPage() {
       try {
         setIsLoading(true);
         setError(null);
-        setIsFallbackMode(false);
         
         const supabase = createClient();
         
-        // Fetch Trending Notes (Last 48 hours sorted by likes)
-        const now = new Date();
-        const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
-
-        let { data, error: queryError } = await supabase
-          .from('notes')
+        const { data, error: queryError } = await supabase
+          .from('notes_with_score')
           .select('*, profiles!user_id(username, display_picture, is_premium)')
-          .gte('created_at', fortyEightHoursAgo)
-          .order('likes_count', { ascending: false })
+          .order('note_score', { ascending: false })
           .limit(20);
 
         if (queryError) throw queryError;
-
-        // Fallback: fetch all-time trending if no recent notes exist
-        if (!data || data.length === 0) {
-          console.log('No notes found in the last 48 hours. Fetching all-time trending fallback...');
-          const fallbackRes = await supabase
-            .from('notes')
-            .select('*, profiles!user_id(username, display_picture, is_premium)')
-            .order('likes_count', { ascending: false })
-            .limit(20);
-
-          if (fallbackRes.error) throw fallbackRes.error;
-          data = fallbackRes.data;
-          setIsFallbackMode(true);
-        }
 
         const formattedNotes: NoteWithProfile[] = (data || []).map((item: any) => {
           const profileData = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
@@ -87,15 +66,7 @@ export default function DiscoveryPage() {
         </p>
       </header>
 
-      {/* Fallback Notice */}
-      {isFallbackMode && notes.length > 0 && (
-        <div className="mb-8 p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/20 flex items-center gap-3">
-          <span className="text-base">ℹ️</span>
-          <p className="text-xs text-cyan-400/95 font-medium">
-            No notes were posted in the last 48 hours. Showing overall top trending voice logs instead!
-          </p>
-        </div>
-      )}
+
 
       {/* Loading Skeletons */}
       {isLoading ? (

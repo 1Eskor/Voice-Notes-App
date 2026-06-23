@@ -24,6 +24,67 @@ export default function AudioEngine() {
     pause,
   } = useAudioPlayer();
 
+  const currentTrackIdRef = useRef<string | null>(null);
+  const accumulatedTimeRef = useRef<number>(0);
+  const lastTimeRef = useRef<number | null>(null);
+
+  const flushListenLog = async (trackId: string, seconds: number) => {
+    const roundedSeconds = Math.round(seconds);
+    if (roundedSeconds <= 3) return;
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('listen_logs')
+        .insert({
+          user_id: user.id,
+          note_id: trackId,
+          seconds_listened: roundedSeconds,
+        });
+
+      if (error) {
+        console.error('[AudioEngine] Failed to log listen time:', error);
+      } else {
+        console.log(`[AudioEngine] Logged ${roundedSeconds}s listened for note ${trackId}`);
+      }
+    } catch (err) {
+      console.error('[AudioEngine] Error logging listen time:', err);
+    }
+  };
+
+  // Flush on track changes
+  useEffect(() => {
+    if (!currentTrack) {
+      if (currentTrackIdRef.current) {
+        flushListenLog(currentTrackIdRef.current, accumulatedTimeRef.current);
+        currentTrackIdRef.current = null;
+        accumulatedTimeRef.current = 0;
+        lastTimeRef.current = null;
+      }
+      return;
+    }
+
+    if (currentTrackIdRef.current && currentTrackIdRef.current !== currentTrack.id) {
+      flushListenLog(currentTrackIdRef.current, accumulatedTimeRef.current);
+      accumulatedTimeRef.current = 0;
+      lastTimeRef.current = null;
+    }
+
+    currentTrackIdRef.current = currentTrack.id;
+  }, [currentTrack]);
+
+  // Flush on unmount
+  useEffect(() => {
+    return () => {
+      if (currentTrackIdRef.current) {
+        flushListenLog(currentTrackIdRef.current, accumulatedTimeRef.current);
+      }
+    };
+  }, []);
+
   // ── 1. Register Audio Element with Zustand Store ───────────────────────────
   useEffect(() => {
     if (audioRef.current) {
@@ -89,12 +150,22 @@ export default function AudioEngine() {
         clearInterval(timeUpdateInterval);
         timeUpdateInterval = null;
       }
+      lastTimeRef.current = null;
       setCurrentTime(audio.currentTime);
     };
 
     // Standard events to stay in sync
     const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
+      const currentPlayTime = audio.currentTime;
+      setCurrentTime(currentPlayTime);
+
+      if (lastTimeRef.current !== null) {
+        const dt = currentPlayTime - lastTimeRef.current;
+        if (dt > 0 && dt < 1) {
+          accumulatedTimeRef.current += dt;
+        }
+      }
+      lastTimeRef.current = currentPlayTime;
     };
 
     const handleLoadedMetadata = () => {

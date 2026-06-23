@@ -8,8 +8,10 @@ import Link from 'next/link';
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [bioText, setBioText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isSavingBio, setIsSavingBio] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
@@ -31,6 +33,7 @@ export default function SettingsPage() {
 
         if (profileError) throw profileError;
         setProfile(profileData);
+        setBioText(profileData?.bio || '');
       } catch (err: any) {
         console.error('Error fetching settings profile:', err);
         setError(err.message || 'Failed to load settings.');
@@ -67,6 +70,34 @@ export default function SettingsPage() {
       setError(err.message || 'Failed to update subscription status.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleSaveBio = async () => {
+    if (!profile || isSavingBio) return;
+
+    try {
+      setIsSavingBio(true);
+      setError(null);
+      const supabase = createClient();
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ bio: bioText.trim() || null })
+        .eq('id', profile.id);
+
+      if (updateError) throw updateError;
+
+      setProfile({
+        ...profile,
+        bio: bioText.trim() || null,
+      });
+      alert('Bio updated successfully!');
+    } catch (err: any) {
+      console.error('Error saving bio:', err);
+      setError(err.message || 'Failed to save bio.');
+    } finally {
+      setIsSavingBio(false);
     }
   };
 
@@ -127,6 +158,32 @@ export default function SettingsPage() {
                     )}
                   </div>
                   <span className="text-xs text-neutral-500">Joined {new Date(profile.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Profile Bio Section */}
+            <div className="w-full bg-neutral-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-xl">
+              <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-4">
+                Profile Bio
+              </h2>
+              <div className="flex flex-col gap-3">
+                <textarea
+                  value={bioText}
+                  onChange={(e) => setBioText(e.target.value.slice(0, 150))}
+                  placeholder="Tell the world about yourself... (max 150 characters)"
+                  rows={3}
+                  className="w-full px-3 py-2 bg-neutral-950 border border-white/10 hover:border-white/20 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none resize-none transition-colors"
+                />
+                <div className="flex items-center justify-between text-[10px] text-neutral-500">
+                  <span>{150 - bioText.length} characters remaining</span>
+                  <button
+                    onClick={handleSaveBio}
+                    disabled={isSavingBio}
+                    className="px-4 py-2 bg-white hover:bg-neutral-200 text-black text-xs font-bold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSavingBio ? 'Saving...' : 'Save Bio'}
+                  </button>
                 </div>
               </div>
             </div>

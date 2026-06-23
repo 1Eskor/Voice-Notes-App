@@ -48,6 +48,8 @@ export default function NoteCard({ note }: NoteCardProps) {
 
   const [isLiked, setIsLiked] = useState(note.is_liked || false);
   const [likesCount, setLikesCount] = useState(note.likes_count || 0);
+  const [isReposted, setIsReposted] = useState(false);
+  const [repostsCount, setRepostsCount] = useState(0);
 
   // Phase 5 Updates State
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -59,7 +61,7 @@ export default function NoteCard({ note }: NoteCardProps) {
   const [isDeleted, setIsDeleted] = useState(false);
 
   useEffect(() => {
-    const fetchUserAndLikeStatus = async () => {
+    const fetchUserAndStatus = async () => {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
@@ -67,6 +69,7 @@ export default function NoteCard({ note }: NoteCardProps) {
 
         setCurrentUserId(user.id);
 
+        // Fetch Like Status
         const { data: likeRecord } = await supabase
           .from('likes')
           .select('*')
@@ -77,12 +80,32 @@ export default function NoteCard({ note }: NoteCardProps) {
         if (likeRecord) {
           setIsLiked(true);
         }
+
+        // Fetch Repost Status
+        const { data: repostRecord } = await supabase
+          .from('reposts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('note_id', note.id)
+          .maybeSingle();
+
+        if (repostRecord) {
+          setIsReposted(true);
+        }
+
+        // Fetch total reposts count
+        const { count } = await supabase
+          .from('reposts')
+          .select('*', { count: 'exact', head: true })
+          .eq('note_id', note.id);
+        
+        setRepostsCount(count || 0);
       } catch (err) {
-        console.error('Error fetching user or checking like status:', err);
+        console.error('Error fetching user status:', err);
       }
     };
 
-    fetchUserAndLikeStatus();
+    fetchUserAndStatus();
   }, [note.id]);
 
   // Close dropdown menu when clicking elsewhere
@@ -142,6 +165,45 @@ export default function NoteCard({ note }: NoteCardProps) {
       // Revert optimistic state values
       setIsLiked(isLiked);
       setLikesCount(likesCount);
+    }
+  };
+
+  const handleRepost = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert('You must be logged in to repost voice notes!');
+        return;
+      }
+
+      const nextRepostState = !isReposted;
+      const nextRepostsCount = nextRepostState ? repostsCount + 1 : Math.max(0, repostsCount - 1);
+
+      // Optimistically update frontend UI states
+      setIsReposted(nextRepostState);
+      setRepostsCount(nextRepostsCount);
+
+      if (nextRepostState) {
+        const { error } = await supabase
+          .from('reposts')
+          .insert({ user_id: user.id, note_id: note.id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('reposts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('note_id', note.id);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Failed to toggle repost record:', err);
+      // Revert optimistic state values
+      setIsReposted(isReposted);
+      setRepostsCount(repostsCount);
     }
   };
 
@@ -240,12 +302,19 @@ export default function NoteCard({ note }: NoteCardProps) {
   const initials = username.slice(0, 2).toUpperCase();
 
   return (
-    <div
-      onClick={handlePlayCard}
-      className={`group w-full flex items-start gap-4 p-4 rounded-2xl bg-neutral-900/40 hover:bg-neutral-900/80 border border-white/5 hover:border-white/10 transition-all duration-300 cursor-pointer ${
-        isCurrentTrack ? 'bg-neutral-900/90 border-cyan-500/30' : ''
-      }`}
-    >
+    <div className="flex flex-col gap-1.5 w-full">
+      {note.reposted_by && (
+        <div className="flex items-center gap-1.5 text-[10px] text-green-450 font-bold px-4 select-none">
+          <span>♻️</span>
+          <span>@{note.reposted_by} reposted</span>
+        </div>
+      )}
+      <div
+        onClick={handlePlayCard}
+        className={`group w-full flex items-start gap-4 p-4 rounded-2xl bg-neutral-900/40 hover:bg-neutral-900/80 border border-white/5 hover:border-white/10 transition-all duration-300 cursor-pointer ${
+          isCurrentTrack ? 'bg-neutral-900/90 border-cyan-500/30' : ''
+        }`}
+      >
       {/* Left: Avatar */}
       <div className="w-10 h-10 rounded-full flex-shrink-0 bg-gradient-to-br from-cyan-500/20 to-violet-500/20 border border-white/10 flex items-center justify-center overflow-hidden relative">
         {displayPicture ? (
@@ -432,7 +501,37 @@ export default function NoteCard({ note }: NoteCardProps) {
             />
           </svg>
         </button>
+
+        {/* Repost Button */}
+        <button
+          onClick={handleRepost}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 border border-transparent cursor-pointer ${
+            isReposted
+              ? 'text-green-500 bg-green-500/10 border-green-500/20'
+              : 'text-white/40 hover:text-green-500 hover:bg-green-500/10 hover:border-green-500/20'
+          }`}
+          title="Repost note"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            className={`w-4 h-4 transition-transform duration-200 ${
+              isReposted ? 'scale-110' : 'group-hover:scale-105'
+            }`}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7C4.547 9.547 4.5 10.768 4.5 12s.047 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.092-1.209.138-2.43.138-3.662Z"
+            />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5 12 7.5m0 0 3 3m-3-3v8.25" />
+          </svg>
+        </button>
       </div>
     </div>
+  </div>
   );
 }

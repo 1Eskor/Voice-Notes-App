@@ -23,22 +23,33 @@ export default function CreatorStats({ userId, followersCount }: CreatorStatsPro
     const fetchStats = async () => {
       try {
         const supabase = createClient();
-        const { data: notes, error } = await supabase
+        const { data: notes, error: notesError } = await supabase
           .from('notes')
-          .select('plays_count, likes_count, duration_seconds')
+          .select('id, plays_count, likes_count')
           .eq('user_id', userId);
 
-        if (error) throw error;
+        if (notesError) throw notesError;
 
         let totalPlays = 0;
         let totalSecondsListened = 0;
 
-        if (notes) {
+        if (notes && notes.length > 0) {
           notes.forEach((note: any) => {
-            const plays = (note.plays_count || 0) + (note.likes_count || 0);
-            totalPlays += plays;
-            totalSecondsListened += note.duration_seconds * plays;
+            totalPlays += (note.plays_count || 0) + (note.likes_count || 0);
           });
+
+          const noteIds = notes.map((n) => n.id);
+
+          const { data: logs, error: logsError } = await supabase
+            .from('listen_logs')
+            .select('seconds_listened')
+            .in('note_id', noteIds);
+
+          if (logsError) throw logsError;
+
+          if (logs) {
+            totalSecondsListened = logs.reduce((sum: number, log: any) => sum + (log.seconds_listened || 0), 0);
+          }
         }
 
         setStats({

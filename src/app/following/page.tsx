@@ -22,20 +22,74 @@ export default function FollowingPage() {
         setIsLoading(true);
         const supabase = createClient();
 
-        const { data, error: queryError } = await supabase
+        // 1. Fetch current user session
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setError('You must be logged in to view your feed.');
+          setIsLoading(false);
+          return;
+        }
+
+        // 2. Fetch people they follow
+        const { data: followsData, error: followsError } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id);
+
+        if (followsError) throw followsError;
+
+        const followingIds = followsData ? followsData.map(f => f.following_id) : [];
+
+        if (followingIds.length === 0) {
+          setNotes([]);
+          setIsLoading(false);
+          return;
+        }
+
+        // 3. Fetch reposts from people they follow
+        const { data: repostsData, error: repostsError } = await supabase
+          .from('reposts')
+          .select('note_id, profiles:user_id(username)')
+          .in('user_id', followingIds);
+
+        if (repostsError) throw repostsError;
+
+        const repostMap: Record<string, string> = {};
+        const repostedNoteIds = (repostsData || []).map((r: any) => {
+          const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+          if (profile?.username) {
+            repostMap[r.note_id] = profile.username;
+          }
+          return r.note_id;
+        });
+
+        // 4. Query notes that are created by followed users OR reposted by followed users
+        let query = supabase
           .from('notes')
-          .select('*, profiles!user_id(username, display_picture, is_premium)')
+          .select('*, profiles!user_id(username, display_picture, is_premium)');
+
+        if (repostedNoteIds.length > 0) {
+          // Format IDs list for in statement
+          const followedListStr = followingIds.map(id => `"${id}"`).join(',');
+          const repostedListStr = repostedNoteIds.map(id => `"${id}"`).join(',');
+          query = query.or(`user_id.in.(${followedListStr}),id.in.(${repostedListStr})`);
+        } else {
+          query = query.in('user_id', followingIds);
+        }
+
+        const { data, error: queryError } = await query
           .order('created_at', { ascending: false })
           .limit(20);
 
         if (queryError) throw queryError;
 
-        // Map and format incoming data to guarantee correct types
+        // Map and format incoming data
         const formattedNotes: NoteWithProfile[] = (data || []).map((item: any) => {
           const profileData = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
           return {
             ...item,
             profiles: profileData || { username: 'Anonymous', display_picture: null },
+            reposted_by: repostMap[item.id] || undefined,
           } as NoteWithProfile;
         });
 
