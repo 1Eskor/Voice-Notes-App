@@ -286,14 +286,6 @@ export default function NoteCard({ note }: NoteCardProps) {
           </Link>
           <span>•</span>
           <span>{formatTimeAgo(note.created_at)}</span>
-          {note.is_promoted && (
-            <>
-              <span>•</span>
-              <span className="text-amber-400 font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[9px] uppercase tracking-wider">
-                Promoted
-              </span>
-            </>
-          )}
         </div>
 
         {isEditingTitle ? (

@@ -17,7 +17,6 @@ export interface Note {
   duration_seconds: number;
   likes_count: number;
   plays_count?: number;
-  is_promoted?: boolean;
   created_at: string;
   // Joined fields (not in DB, populated via query joins)
   profiles?: Profile;
