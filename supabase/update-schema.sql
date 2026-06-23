@@ -190,37 +190,29 @@ do $$
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     if not exists (
-      select 1 from pg_publication_rel pr 
-      join pg_class c on pr.prrelid = c.oid 
-      join pg_namespace n on c.relnamespace = n.oid 
-      where pr.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'notifications'
+      select 1 from pg_publication_tables 
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notifications'
     ) then
       alter publication supabase_realtime add table public.notifications;
     end if;
 
     if not exists (
-      select 1 from pg_publication_rel pr 
-      join pg_class c on pr.prrelid = c.oid 
-      join pg_namespace n on c.relnamespace = n.oid 
-      where pr.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'likes'
+      select 1 from pg_publication_tables 
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'likes'
     ) then
       alter publication supabase_realtime add table public.likes;
     end if;
 
     if not exists (
-      select 1 from pg_publication_rel pr 
-      join pg_class c on pr.prrelid = c.oid 
-      join pg_namespace n on c.relnamespace = n.oid 
-      where pr.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'comments'
+      select 1 from pg_publication_tables 
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'comments'
     ) then
       alter publication supabase_realtime add table public.comments;
     end if;
 
     if not exists (
-      select 1 from pg_publication_rel pr 
-      join pg_class c on pr.prrelid = c.oid 
-      join pg_namespace n on c.relnamespace = n.oid 
-      where pr.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'notes'
+      select 1 from pg_publication_tables 
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'notes'
     ) then
       alter publication supabase_realtime add table public.notes;
     end if;
