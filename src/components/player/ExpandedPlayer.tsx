@@ -60,6 +60,8 @@ export default function ExpandedPlayer() {
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [isTrackLiked, setIsTrackLiked] = useState(false);
   const [trackLikesCount, setTrackLikesCount] = useState(0);
+  const [isTrackReposted, setIsTrackReposted] = useState(false);
+  const [trackRepostsCount, setTrackRepostsCount] = useState(0);
 
   // Synchronize state when the track changes
   const [prevTrackId, setPrevTrackId] = useState<string | null>(null);
@@ -97,12 +99,13 @@ export default function ExpandedPlayer() {
   useEffect(() => {
     if (!currentTrack?.id) return;
 
-    const checkTrackLikeStatus = async () => {
+    const checkTrackSocialStatus = async () => {
       try {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        // Check Like Status
         const { data: likeRecord } = await supabase
           .from('likes')
           .select('*')
@@ -111,12 +114,30 @@ export default function ExpandedPlayer() {
           .maybeSingle();
 
         setIsTrackLiked(!!likeRecord);
+
+        // Check Repost Status
+        const { data: repostRecord } = await supabase
+          .from('reposts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('note_id', currentTrack.id)
+          .maybeSingle();
+
+        setIsTrackReposted(!!repostRecord);
+
+        // Fetch total reposts count
+        const { count } = await supabase
+          .from('reposts')
+          .select('*', { count: 'exact', head: true })
+          .eq('note_id', currentTrack.id);
+
+        setTrackRepostsCount(count || 0);
       } catch (err) {
-        console.error('Failed to check track like status:', err);
+        console.error('Failed to check track social status:', err);
       }
     };
 
-    checkTrackLikeStatus();
+    checkTrackSocialStatus();
   }, [currentTrack?.id]);
 
   // Fetch comments when current track changes
@@ -176,6 +197,43 @@ export default function ExpandedPlayer() {
       console.error('Failed to toggle track like:', err);
       setIsTrackLiked(isTrackLiked);
       setTrackLikesCount(trackLikesCount);
+    }
+  };
+
+  const handleToggleTrackRepost = async () => {
+    if (!currentTrack?.id) return;
+
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert('You must be logged in to repost voice notes!');
+        return;
+      }
+
+      const nextRepostState = !isTrackReposted;
+      const nextRepostsCount = nextRepostState ? trackRepostsCount + 1 : Math.max(0, trackRepostsCount - 1);
+
+      setIsTrackReposted(nextRepostState);
+      setTrackRepostsCount(nextRepostsCount);
+
+      if (nextRepostState) {
+        const { error } = await supabase
+          .from('reposts')
+          .insert({ user_id: user.id, note_id: currentTrack.id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('reposts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('note_id', currentTrack.id);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error('Failed to toggle track repost:', err);
+      setIsTrackReposted(isTrackReposted);
+      setTrackRepostsCount(trackRepostsCount);
     }
   };
 
@@ -425,7 +483,13 @@ export default function ExpandedPlayer() {
                   </svg>
                   <span>Like</span>
                 </button>
-                <button className="px-3 py-1.5 rounded-md flex items-center gap-1 text-white/60 hover:text-white border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all cursor-not-allowed opacity-50">
+                <button
+                  onClick={handleToggleTrackRepost}
+                  className={`px-3 py-1.5 rounded-md flex items-center gap-1 border border-white/5 hover:border-green-500/20 hover:bg-green-500/5 transition-all cursor-pointer ${
+                    isTrackReposted ? 'text-green-500 border-green-500/20 bg-green-500/5' : 'text-white/60 hover:text-green-500'
+                  }`}
+                  title="Repost track"
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7C4.547 9.547 4.5 10.768 4.5 12s.047 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.092-1.209.138-2.43.138-3.662Z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5 12 7.5m0 0 3 3m-3-3v8.25" />
@@ -445,7 +509,7 @@ export default function ExpandedPlayer() {
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
                   </svg>
-                  <span>1.2K</span>
+                  <span>{currentTrack.plays_count || 0}</span>
                 </span>
                 <span className="flex items-center gap-1 text-rose-500/80">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">

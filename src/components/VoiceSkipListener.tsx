@@ -82,7 +82,9 @@ export default function VoiceSkipListener() {
     }
   }, [skipToNext, triggerVoiceFlash]);
 
-  createAndStartRef.current = createAndStart;
+  useEffect(() => {
+    createAndStartRef.current = createAndStart;
+  }, [createAndStart]);
 
   useEffect(() => {
     stoppedRef.current = false;

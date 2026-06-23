@@ -148,11 +148,27 @@ export default function UserProfilePage({ params }: ProfilePageProps) {
           setIsFollowing(!!followRecord);
         }
 
-        // 5. Fetch Target user's Notes
+        // 5. Fetch Target user's Reposts
+        const { data: repostsData, error: repostsError } = await supabase
+          .from('reposts')
+          .select('note_id')
+          .eq('user_id', targetUserId);
+
+        if (repostsError) throw repostsError;
+
+        const repostedNoteIds = repostsData ? repostsData.map(r => r.note_id) : [];
+
+        // 6. Fetch Target user's Notes & Reposts
         let query = supabase
           .from('notes')
-          .select('*, profiles!user_id(username, display_picture, is_premium)')
-          .eq('user_id', targetUserId);
+          .select('*, profiles!user_id(username, display_picture, is_premium)');
+
+        if (repostedNoteIds.length > 0) {
+          const repostedListStr = repostedNoteIds.map(id => `"${id}"`).join(',');
+          query = query.or(`user_id.eq."${targetUserId}",id.in.(${repostedListStr})`);
+        } else {
+          query = query.eq('user_id', targetUserId);
+        }
 
         if (activeFilter === 'Quick Hits') {
           query = query.lt('duration_seconds', 60);
@@ -167,9 +183,11 @@ export default function UserProfilePage({ params }: ProfilePageProps) {
 
         const formattedNotes: NoteWithProfile[] = (notesData || []).map((item: any) => {
           const noteProfile = Array.isArray(item.profiles) ? item.profiles[0] : item.profiles;
+          const isRepost = item.user_id !== targetUserId;
           return {
             ...item,
             profiles: noteProfile || targetProfile,
+            reposted_by: isRepost ? targetProfile.username : undefined,
           } as NoteWithProfile;
         });
 
