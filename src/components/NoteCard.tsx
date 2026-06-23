@@ -108,6 +108,59 @@ export default function NoteCard({ note }: NoteCardProps) {
     fetchUserAndStatus();
   }, [note.id]);
 
+  // Subscribe to real-time likes and reposts changes
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`note-social-realtime-${note.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'likes',
+          filter: `note_id=eq.${note.id}`,
+        },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.user_id !== currentUserId) {
+              setLikesCount((prev) => prev + 1);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (payload.old.user_id !== currentUserId) {
+              setLikesCount((prev) => Math.max(0, prev - 1));
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reposts',
+          filter: `note_id=eq.${note.id}`,
+        },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.user_id !== currentUserId) {
+              setRepostsCount((prev) => prev + 1);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (payload.old.user_id !== currentUserId) {
+              setRepostsCount((prev) => Math.max(0, prev - 1));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [note.id, currentUserId]);
+
   // Close dropdown menu when clicking elsewhere
   useEffect(() => {
     if (!isMenuOpen) return;

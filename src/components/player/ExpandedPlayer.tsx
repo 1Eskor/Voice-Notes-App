@@ -163,6 +163,116 @@ export default function ExpandedPlayer() {
     fetchComments();
   }, [currentTrack?.id, isPlayerExpanded]);
 
+  // Subscribe to real-time comments when track changes
+  useEffect(() => {
+    if (!currentTrack?.id || !isPlayerExpanded) return;
+
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel(`track-comments-realtime-${currentTrack.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'comments',
+          filter: `note_id=eq.${currentTrack.id}`,
+        },
+        async (payload: any) => {
+          // If the comment is from the current user, it has already been added optimistically
+          if (payload.new.user_id === currentUserProfile?.id) return;
+
+          // Fetch the profile of the comment author
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username, display_picture, is_premium')
+            .eq('id', payload.new.user_id)
+            .maybeSingle();
+
+          const formattedComment = {
+            ...payload.new,
+            profiles: profile || { username: 'Anonymous', display_picture: null, is_premium: false },
+          };
+
+          setComments((prev) => [formattedComment, ...prev]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'comments',
+          filter: `note_id=eq.${currentTrack.id}`,
+        },
+        (payload: any) => {
+          setComments((prev) => prev.filter((c) => c.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentTrack?.id, isPlayerExpanded, currentUserProfile?.id]);
+
+  // Subscribe to real-time likes and reposts for currently playing track
+  useEffect(() => {
+    if (!currentTrack?.id) return;
+
+    const supabase = createClient();
+    const currentUserId = currentUserProfile?.id;
+
+    const channel = supabase
+      .channel(`track-social-realtime-${currentTrack.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'likes',
+          filter: `note_id=eq.${currentTrack.id}`,
+        },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.user_id !== currentUserId) {
+              setTrackLikesCount((prev) => prev + 1);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (payload.old.user_id !== currentUserId) {
+              setTrackLikesCount((prev) => Math.max(0, prev - 1));
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reposts',
+          filter: `note_id=eq.${currentTrack.id}`,
+        },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            if (payload.new.user_id !== currentUserId) {
+              setTrackRepostsCount((prev) => prev + 1);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            if (payload.old.user_id !== currentUserId) {
+              setTrackRepostsCount((prev) => Math.max(0, prev - 1));
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentTrack?.id, currentUserProfile?.id]);
+
   const handleToggleTrackLike = async () => {
     if (!currentTrack?.id) return;
 

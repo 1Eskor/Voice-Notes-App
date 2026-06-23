@@ -6,6 +6,7 @@ import { NoteWithProfile } from '@/lib/types';
 import NoteCard from '@/components/NoteCard';
 import { useAudioPlayer } from '@/stores/useAudioPlayer';
 import VoiceSkipListener from '@/components/VoiceSkipListener';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function FollowingPage() {
   const [notes, setNotes] = useState<NoteWithProfile[]>([]);
@@ -17,10 +18,12 @@ export default function FollowingPage() {
   const toggleHandsFree = useAudioPlayer((state) => state.toggleHandsFree);
 
   useEffect(() => {
+    let activeChannel: any = null;
+    const supabase = createClient();
+
     const fetchNotes = async () => {
       try {
         setIsLoading(true);
-        const supabase = createClient();
 
         // 1. Fetch current user session
         const { data: { user } } = await supabase.auth.getUser();
@@ -98,6 +101,37 @@ export default function FollowingPage() {
         if (formattedNotes.length > 0) {
           setQueue(formattedNotes);
         }
+
+        // 5. Setup Real-time subscription for followed users' new posts
+        activeChannel = supabase
+          .channel('following-notes-realtime')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'notes' },
+            async (payload: any) => {
+              const newNote = payload.new;
+              if (followingIds.includes(newNote.user_id)) {
+                // Fetch creator profile
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('username, display_picture, is_premium')
+                  .eq('id', newNote.user_id)
+                  .maybeSingle();
+
+                const formatted: NoteWithProfile = {
+                  ...newNote,
+                  profiles: profile || { username: 'Anonymous', display_picture: null, is_premium: false },
+                };
+
+                setNotes((prev) => [formatted, ...prev]);
+                // Update play queue dynamically
+                const currentQueue = useAudioPlayer.getState().queue;
+                useAudioPlayer.getState().setQueue([formatted, ...currentQueue]);
+              }
+            }
+          )
+          .subscribe();
+
       } catch (err: any) {
         console.error('Error loading notes:', err);
         setError(err.message || 'Failed to fetch notes.');
@@ -107,6 +141,12 @@ export default function FollowingPage() {
     };
 
     fetchNotes();
+
+    return () => {
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel);
+      }
+    };
   }, [setQueue]);
 
   return (
@@ -124,30 +164,34 @@ export default function FollowingPage() {
           </p>
         </div>
 
-        {/* Hands-Free Mode Toggle */}
-        <button
-          onClick={toggleHandsFree}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-300 cursor-pointer border ${
-            isHandsFreeEnabled
-              ? 'bg-gradient-to-r from-violet-500 to-pink-500 text-white border-transparent shadow-lg shadow-violet-500/20'
-              : 'bg-neutral-900/40 text-neutral-400 hover:text-white border-white/5 hover:bg-neutral-900/80'
-          }`}
-          title={isHandsFreeEnabled ? 'Disable Hands-Free Mode' : 'Enable Hands-Free Mode'}
-        >
-          {isHandsFreeEnabled ? (
-            <>
-              <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-              <span>Hands-Free On</span>
-            </>
-          ) : (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-3.5 h-3.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
-              </svg>
-              <span>Hands-Free Off</span>
-            </>
-          )}
-        </button>
+        {/* Action Header Group (Bell Icon + Hands-Free Toggle) */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <NotificationBell />
+
+          <button
+            onClick={toggleHandsFree}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all duration-300 cursor-pointer border ${
+              isHandsFreeEnabled
+                ? 'bg-gradient-to-r from-violet-500 to-pink-500 text-white border-transparent shadow-lg shadow-violet-500/20'
+                : 'bg-neutral-900/40 text-neutral-400 hover:text-white border-white/5 hover:bg-neutral-900/80'
+            }`}
+            title={isHandsFreeEnabled ? 'Disable Hands-Free Mode' : 'Enable Hands-Free Mode'}
+          >
+            {isHandsFreeEnabled ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                <span>Hands-Free On</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="w-3.5 h-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                </svg>
+                <span>Hands-Free Off</span>
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Feed Content */}
