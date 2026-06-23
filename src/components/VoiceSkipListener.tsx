@@ -12,6 +12,7 @@ export default function VoiceSkipListener() {
   const recognitionRef = useRef<any>(null);
   const stoppedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const createAndStartRef = useRef<(() => void) | null>(null);
 
   const createAndStart = useCallback(() => {
     if (stoppedRef.current) return;
@@ -63,8 +64,8 @@ export default function VoiceSkipListener() {
       // Check stoppedRef at schedule time AND fire time so cleanup is airtight.
       if (stoppedRef.current) return;
       timerRef.current = setTimeout(() => {
-        if (!stoppedRef.current) {
-          createAndStart();
+        if (!stoppedRef.current && createAndStartRef.current) {
+          createAndStartRef.current();
         }
       }, 250);
     };
@@ -76,10 +77,12 @@ export default function VoiceSkipListener() {
     } catch (e) {
       // If start() throws (e.g. already running), retry after a short delay
       timerRef.current = setTimeout(() => {
-        if (!stoppedRef.current) createAndStart();
+        if (!stoppedRef.current && createAndStartRef.current) createAndStartRef.current();
       }, 500);
     }
   }, [skipToNext, triggerVoiceFlash]);
+
+  createAndStartRef.current = createAndStart;
 
   useEffect(() => {
     stoppedRef.current = false;

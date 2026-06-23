@@ -61,6 +61,13 @@ export default function ExpandedPlayer() {
   const [isTrackLiked, setIsTrackLiked] = useState(false);
   const [trackLikesCount, setTrackLikesCount] = useState(0);
 
+  // Synchronize state when the track changes
+  const [prevTrackId, setPrevTrackId] = useState<string | null>(null);
+  if (currentTrack && currentTrack.id !== prevTrackId) {
+    setPrevTrackId(currentTrack.id);
+    setTrackLikesCount(currentTrack.likes_count || 0);
+  }
+
   // Fetch current user details on mount
   useEffect(() => {
     const fetchCurrentUserProfile = async () => {
@@ -89,8 +96,6 @@ export default function ExpandedPlayer() {
   // Fetch track like status when current track changes
   useEffect(() => {
     if (!currentTrack?.id) return;
-    
-    setTrackLikesCount(currentTrack.likes_count || 0);
 
     const checkTrackLikeStatus = async () => {
       try {
