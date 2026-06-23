@@ -9,9 +9,11 @@ create table if not exists public.listen_logs (
 
 alter table public.listen_logs enable row level security;
 
+drop policy if exists "Anyone can read listen logs" on public.listen_logs;
 create policy "Anyone can read listen logs"
   on public.listen_logs for select using (true);
 
+drop policy if exists "Users can log own listens" on public.listen_logs;
 create policy "Users can log own listens"
   on public.listen_logs for insert with check (auth.uid() = user_id);
 
@@ -26,12 +28,15 @@ create table if not exists public.reposts (
 
 alter table public.reposts enable row level security;
 
+drop policy if exists "Reposts are publicly readable" on public.reposts;
 create policy "Reposts are publicly readable"
   on public.reposts for select using (true);
 
+drop policy if exists "Users can repost" on public.reposts;
 create policy "Users can repost"
   on public.reposts for insert with check (auth.uid() = user_id);
 
+drop policy if exists "Users can remove repost" on public.reposts;
 create policy "Users can remove repost"
   on public.reposts for delete using (auth.uid() = user_id);
 
@@ -77,9 +82,11 @@ create table if not exists public.notifications (
 
 alter table public.notifications enable row level security;
 
+drop policy if exists "Users can read own notifications" on public.notifications;
 create policy "Users can read own notifications"
   on public.notifications for select using (auth.uid() = user_id);
 
+drop policy if exists "Users can update own notifications" on public.notifications;
 create policy "Users can update own notifications"
   on public.notifications for update using (auth.uid() = user_id);
 
@@ -240,12 +247,15 @@ create table if not exists public.comment_likes (
 
 alter table public.comment_likes enable row level security;
 
+drop policy if exists "Comment likes are publicly readable" on public.comment_likes;
 create policy "Comment likes are publicly readable"
   on public.comment_likes for select using (true);
 
+drop policy if exists "Users can like comments" on public.comment_likes;
 create policy "Users can like comments"
   on public.comment_likes for insert with check (auth.uid() = user_id);
 
+drop policy if exists "Users can remove comment likes" on public.comment_likes;
 create policy "Users can remove comment likes"
   on public.comment_likes for delete using (auth.uid() = user_id);
 
